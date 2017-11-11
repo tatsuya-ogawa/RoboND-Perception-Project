@@ -52,16 +52,37 @@ def pcl_callback(pcl_msg):
 # Exercise-2 TODOs:
 
     # TODO: Convert ROS msg to PCL data
-    
+    cloud = ros_to_pcl(pcl_msg)
+
     # TODO: Statistical Outlier Filtering
 
     # TODO: Voxel Grid Downsampling
+    vox = cloud.make_voxel_grid_filter()
+
+    LEAF_SIZE = 0.01
+    vox.set_leaf_size(LEAF_SIZE, LEAF_SIZE, LEAF_SIZE)
+
+    cloud_filtered = vox.filter()
+
 
     # TODO: PassThrough Filter
+    passthrough = cloud_filtered.make_passthrough_filter()
+    filter_axis = 'z'
+    passthrough.set_filter_field_name(filter_axis)
+    axis_min = 0.6
+    axis_max = 1.1
+    passthrough.set_filter_limits(axis_min, axis_max)
 
     # TODO: RANSAC Plane Segmentation
+    seg = cloud_filtered.make_segmenter()
+    seg.set_model_type(pcl.SACMODEL_PLANE)
+    seg.set_method_type(pcl.SAC_RANSAC)
+    max_distance = 0.01
+    seg.set_distance_threshold(max_distance)
 
     # TODO: Extract inliers and outliers
+    inliers, coefficients = seg.segment()
+    extracted_outliers = cloud_filtered.extract(inliers, negative=True)
 
     # TODO: Euclidean Clustering
 
@@ -137,11 +158,15 @@ def pr2_mover(object_list):
 if __name__ == '__main__':
 
     # TODO: ROS node initialization
-
+    rospy.init_node('object_recognition', anonymous=True)
     # TODO: Create Subscribers
-
+    pcl_sub = rospy.Subscriber("/pr2/world/points", pc2.PointCloud2, pcl_callback, queue_size=1)
     # TODO: Create Publishers
-
+    pcl_objects_pub = rospy.Publisher("/pcl_objects", PointCloud2, queue_size=1)
+    pcl_table_pub = rospy.Publisher("/pcl_table", PointCloud2, queue_size=1)
+    pcl_cluster_pub = rospy.Publisher("/pcl_cluster", PointCloud2, queue_size=1)
+    object_markers_pub = rospy.Publisher('/object_markers', Marker, queue_size=1)
+    detected_objects_pub = rospy.Publisher('/detected_objects', DetectedObjectsArray, queue_size=1)
     # TODO: Load Model From disk
 
     # Initialize color_list
