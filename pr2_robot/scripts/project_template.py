@@ -200,7 +200,7 @@ def pcl_callback(pcl_msg):
 # function to load parameters and request PickPlace service
 def pr2_mover(object_list):
     # Initialize variables it depend on the scene
-    test_scene = 2
+    test_scene = 3
 
     test_scene_num = Int32(test_scene)
     object_name = String()
