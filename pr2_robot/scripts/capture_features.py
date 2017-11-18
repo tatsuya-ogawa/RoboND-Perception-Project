@@ -23,7 +23,7 @@ def get_normals(cloud):
 if __name__ == '__main__':
     rospy.init_node('capture_node')
 
-    models = [\
+    models = [
         'sticky_notes','book','snacks','biscuits', 'eraser', 'soap2', 'soap', 'glue'
     ]
 

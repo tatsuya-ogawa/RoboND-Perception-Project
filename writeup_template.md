@@ -15,15 +15,6 @@
 8. Submit a link to your GitHub repo for the project or the Python code for your perception pipeline and your output `.yaml` files (3 `.yaml` files, one for each test world).  You must have correctly identified 100% of objects from `pick_list_1.yaml` for `test1.world`, 80% of items from `pick_list_2.yaml` for `test2.world` and 75% of items from `pick_list_3.yaml` in `test3.world`.
 9. Congratulations!  Your Done!
 
-# Extra Challenges: Complete the Pick & Place
-7. To create a collision map, publish a point cloud to the `/pr2/3d_map/points` topic and make sure you change the `point_cloud_topic` to `/pr2/3d_map/points` in `sensors.yaml` in the `/pr2_robot/config/` directory. This topic is read by Moveit!, which uses this point cloud input to generate a collision map, allowing the robot to plan its trajectory.  Keep in mind that later when you go to pick up an object, you must first remove it from this point cloud so it is removed from the collision map!
-8. Rotate the robot to generate collision map of table sides. This can be accomplished by publishing joint angle value(in radians) to `/pr2/world_joint_controller/command`
-9. Rotate the robot back to its original state.
-10. Create a ROS Client for the “pick_place_routine” rosservice.  In the required steps above, you already created the messages you need to use this service. Checkout the [PickPlace.srv](https://github.com/udacity/RoboND-Perception-Project/tree/master/pr2_robot/srv) file to find out what arguments you must pass to this service.
-11. If everything was done correctly, when you pass the appropriate messages to the `pick_place_routine` service, the selected arm will perform pick and place operation and display trajectory in the RViz window
-12. Place all the objects from your pick list in their respective dropoff box and you have completed the challenge!
-13. Looking for a bigger challenge?  Load up the `challenge.world` scenario and see if you can get your perception pipeline working there!
-
 ## [Rubric](https://review.udacity.com/#!/rubrics/1067/view) Points
 ### Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
 
@@ -32,17 +23,92 @@
 
 #### 1. Provide a Writeup / README that includes all the rubric points and how you addressed each one.  You can submit your writeup as markdown or pdf.  
 
-You're reading it!
+Here's project I implimanted. code is located in `pr2_robot/scripts/project_template.py`
 
 ### Exercise 1, 2 and 3 pipeline implemented
 #### 1. Complete Exercise 1 steps. Pipeline for filtering and RANSAC plane fitting implemented.
 
+##### PassThroghFilter
+Applying a `PassThrough Filter` to fit to the range of objects.
+I used z and x axis to filter.
+```
+filter_axis = 'z'
+axis_min = 0.6
+axis_max = 1.3
+
+filter_axis = 'x'
+axis_min = 0.34
+axis_max = 1.0
+```
+X axis filter was used to exclude side boxes.
+
+##### Statistical Outlier Filtering
+Applying a `Statistical Outlier Filtering` to remove outlier noise points.
+```
+outlier_filter.set_mean_k(50)
+```
+
+##### RANSAC Plane Segmentation
+Applying a `RANSAC Plane Segmentation` to divide objects and table.
+```
+seg = cloud_filtered.make_segmenter()
+seg.set_model_type(pcl.SACMODEL_PLANE)
+seg.set_method_type(pcl.SAC_RANSAC)
+max_distance = 0.01
+seg.set_distance_threshold(max_distance)
+```
+
 #### 2. Complete Exercise 2 steps: Pipeline including clustering for segmentation implemented.  
 
-#### 2. Complete Exercise 3 Steps.  Features extracted and SVM trained.  Object recognition implemented.
-Here is an example of how to include an image in your writeup.
+Use PCL's Euclidean Clustering algorithm to segment the points into indivisual objects.
+```
+ white_cloud = XYZRGB_to_XYZ(cloud_objects)
+tree = white_cloud.make_kdtree()
 
-![demo-1](https://user-images.githubusercontent.com/20687560/28748231-46b5b912-7467-11e7-8778-3095172b7b19.png)
+# create a cluster extraction object
+ec = white_cloud.make_EuclideanClusterExtraction()
+
+ec.set_ClusterTolerance(0.016)
+ec.set_MinClusterSize(30)
+ec.set_MaxClusterSize(3000)
+
+ec.set_SearchMethod(tree)
+cluster_indices = ec.Extract()
+```
+
+#### 2. Complete Exercise 3 Steps.  Features extracted and SVM trained.  Object recognition implemented.
+
+##### Capture features
+I used `capture_feature.py` from Exercise3,and modify the models to following objects.
+
+```
+['sticky_notes','book','snacks','biscuits', 'eraser', 'soap2', 'soap', 'glue']
+```
+I tuned the following parameters in order to optimize the performance of the SVM classifier:
+* number of poses per object to 100.
+* rgb color space to hsv.
+* number of bins of histogram to 32
+
+I used `features.py` script placed on sensor_stick project.
+(copied to pr2_robot/scripts) 
+
+##### Training
+Training scripts is `train_svm.py` and training results was following.
+![confusion-matrix](./misc/confusion_matrix.png)
+
+##### Recognition
+I used concatinated features with color histogram and normal histogram same as training feature.
+```
+# extract histogram features
+chists = compute_color_histograms(ros_cluster, using_hsv=True)
+normals = get_normals(ros_cluster)
+nhists = compute_normal_histograms(normals)
+feature = np.concatenate((chists, nhists))
+
+# Make the prediction,
+prediction = clf.predict(scaler.transform(feature.reshape(1, -1)))
+label = encoder.inverse_transform(prediction)[0]
+```
 
 ### Pick and Place Setup
 
